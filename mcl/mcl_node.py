@@ -3,7 +3,6 @@ import matplotlib.animation as ani
 import math
 import matplotlib.patches as patches
 import numpy as np
-from scipy.stats import multivariate_normal
 
 class World:
     def __init__(self, time_span, time_interval, debug = False):
@@ -45,15 +44,8 @@ class Particle:
         self.pose = init_pose
 
 class Mcl:
-    def __init__(self, init_pose, num, motion_noise_stds):
+    def __init__(self, init_pose, num):
         self.particles = [Particle(init_pose) for i in range(num)]
-
-        v = motion_noise_stds
-        c = np.diag([v["nn"]**2, v["no"]**2, v["on"]**2, v["oo"]**2])
-        self.motion_noise_rate_pdf = multivariate_normal(cov=c)
-
-    def motion_update(self, nu, omega, time):
-        print(self.motion_noise_rate_pdf.cov)
 
     def draw(self, ax, elems):
         xs = [p.pose[0] for p in self.particles]
@@ -63,11 +55,10 @@ class Mcl:
         elems.append(ax.quiver(xs, ys, vxs, vys, color="blue", alpha=0.5))
 
 class Agent:
-    def __init__(self, time_interval, nu, omega, estimator):
+    def __init__(self, nu, omega, estimator):
         self.nu = nu
         self.omega = omega
         self.estimator = estimator
-        self.time_interval = time_interval
 
     def decision(self, observation = None):
         return self.nu, self.omega
@@ -144,14 +135,13 @@ def main():
     m.append_landmark(Landmark(3, 2))
     world.append(m)
 
-    estimator = Mcl(init_pose, 100, motion_noise_stds={"nn":0.01, "no":0.02, "on":0.03, "oo":0.04})
+    estimator = Mcl(init_pose, 100)
 
-    # straight = Agent(0.2, 0.0, estimator)
-    # robot = Robot(init_pose, agent=straight)
-    estimator.motion_update(0.2, 10.0/180*math.pi, 0.1)
+    straight = Agent(0.2, 0.0, estimator)
+    robot = Robot(init_pose, agent=straight)
 
-    # world.append(robot)
-    # world.draw()
+    world.append(robot)
+    world.draw()
 
 if __name__ == "__main__":
     main()
