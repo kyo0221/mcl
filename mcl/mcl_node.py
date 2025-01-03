@@ -38,11 +38,26 @@ class World:
         elems.append(ax.text(-4.4, 4.5, "t = "+str(i), fontsize = 10))
         for obj in self.objects:
             obj.draw(ax, elems)
-            if hasattr(obj, "one_step"): obj.one_step(1.0)
+            if hasattr(obj, "one_step"): obj.one_step(0.1)
 
 class Particle:
     def __init__(self, init_pose):
         self.pose = init_pose
+
+    def motion_update(self, nu, omega, time, noise_rate_pdf):
+        ns = noise_rate_pdf.rvs() #順にnn, no, on, oo
+        noised_nu = nu + ns[0]*math.sqrt(abs(nu)/time) + ns[1]*math.sqrt(abs(omega)/time)
+        noised_omega = omega + ns[2]*math.sqrt(abs(nu)/time) + ns[3]*math.sqrt(abs(omega)/time)
+        self.pose = Particle.state_transition(noised_nu, noised_omega, time, self.pose)
+
+
+    def state_transition(nu, omega, time, pose):
+        t0 = pose[2]
+        if math.fabs(omega) < 1e-10:
+            return pose + np.array([nu*math.cos(t0), nu*math.sin(t0), omega]) * time
+        else:
+            return pose + np.array([nu/omega*(math.sin(t0 + omega*time) - math.sin(t0)), nu/omega*(-math.cos(t0 + omega * time) + math.cos(t0)), omega * time])
+
 
 class Mcl:
     def __init__(self, init_pose, num, motion_noise_stds):
@@ -53,7 +68,7 @@ class Mcl:
         self.motion_noise_rate_pdf = multivariate_normal(cov=c)
 
     def motion_update(self, nu, omega, time):
-        print(self.motion_noise_rate_pdf.cov)
+        for p in self.particles: p.motion_update(nu, omega, time, self.motion_noise_rate_pdf)
 
     def draw(self, ax, elems):
         xs = [p.pose[0] for p in self.particles]
@@ -75,6 +90,14 @@ class EstimatorAgent(Agent):
         super().__init__(nu, omega)
         self.estimator = estimator
         self.time_interval = time_interval
+
+        self.prev_nu = 0
+        self.prev_omega = 0
+
+    def decision(self, observation=None):
+        self.estimator.motion_update(self.prev_nu, self.prev_omega, self.time_interval)
+        self.prev_nu, self.prev_omega = self.nu, self.omega
+        return self.nu, self.omega
 
     def draw(self, ax, elems):
         self.estimator.draw(ax, elems)
@@ -133,18 +156,21 @@ class Map:
         for lm in self.landmarks: lm.draw(ax, elems)
 
 def main():
+    time_interval = 0.1
     init_pose = np.array([-2, 0, 0]).T
 
-    world = World(100, 0.1)
+    world = World(100, time_interval)
     m = Map()
     m.append_landmark(Landmark(3, 2))
     world.append(m)
 
     estimator = Mcl(init_pose, 100, motion_noise_stds={"nn":0.01, "no":0.02, "on":0.03, "oo":0.04})
 
-    straight = EstimatorAgent(0.1, 0.2, 0.0, estimator)
+    straight = EstimatorAgent(time_interval, 0.2, 0.0, estimator)
     robot = Robot(init_pose, agent=straight)
-    estimator.motion_update(0.2, 0, 0.1)
+    estimator.motion_update(0.2, 0, time_interval)
+    # for p in estimator.particles:
+    #     print(p.pose)
 
     world.append(robot)
     world.draw()
