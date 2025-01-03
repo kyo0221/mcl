@@ -3,6 +3,7 @@ import matplotlib.animation as ani
 import math
 import matplotlib.patches as patches
 import numpy as np
+from scipy.stats import multivariate_normal
 
 class World:
     def __init__(self, time_span, time_interval, debug = False):
@@ -44,8 +45,15 @@ class Particle:
         self.pose = init_pose
 
 class Mcl:
-    def __init__(self, init_pose, num):
+    def __init__(self, init_pose, num, motion_noise_stds):
         self.particles = [Particle(init_pose) for i in range(num)]
+
+        v = motion_noise_stds
+        c = np.diag([v["nn"]**2, v["no"]**2, v["on"]**2, v["oo"]**2])
+        self.motion_noise_rate_pdf = multivariate_normal(cov=c)
+
+    def motion_update(self, nu, omega, time):
+        print(self.motion_noise_rate_pdf.cov)
 
     def draw(self, ax, elems):
         xs = [p.pose[0] for p in self.particles]
@@ -55,13 +63,18 @@ class Mcl:
         elems.append(ax.quiver(xs, ys, vxs, vys, color="blue", alpha=0.5))
 
 class Agent:
-    def __init__(self, nu, omega, estimator):
+    def __init__(self, nu, omega):
         self.nu = nu
         self.omega = omega
-        self.estimator = estimator
 
     def decision(self, observation = None):
         return self.nu, self.omega
+
+class EstimatorAgent(Agent):
+    def __init__(self, time_interval, nu, omega, estimator):
+        super().__init__(nu, omega)
+        self.estimator = estimator
+        self.time_interval = time_interval
 
     def draw(self, ax, elems):
         self.estimator.draw(ax, elems)
@@ -119,14 +132,6 @@ class Map:
     def draw(self, ax, elems):
         for lm in self.landmarks: lm.draw(ax, elems)
 
-class EstimationAgent(Agent):  ###EstimationAgent3 (1,2,6,7行目を記載)
-    def __init__(self, nu, omega, estimator): 
-        super().__init__(nu, omega)
-        self.estimator = estimator
-        
-    def draw(self, ax, elems):   #追加
-        self.estimator.draw(ax, elems)
-
 def main():
     init_pose = np.array([-2, 0, 0]).T
 
@@ -135,10 +140,11 @@ def main():
     m.append_landmark(Landmark(3, 2))
     world.append(m)
 
-    estimator = Mcl(init_pose, 100)
+    estimator = Mcl(init_pose, 100, motion_noise_stds={"nn":0.01, "no":0.02, "on":0.03, "oo":0.04})
 
-    straight = Agent(0.2, 0.0, estimator)
+    straight = EstimatorAgent(0.1, 0.2, 0.0, estimator)
     robot = Robot(init_pose, agent=straight)
+    estimator.motion_update(0.2, 0, 0.1)
 
     world.append(robot)
     world.draw()
