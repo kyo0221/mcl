@@ -1,11 +1,14 @@
+import os
+import random
+import copy
+import yaml
+
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
 import math
 import matplotlib.patches as patches
 import numpy as np
 from scipy.stats import multivariate_normal
-import random
-import copy
 
 class World:
     def __init__(self, time_span, time_interval, debug = False):
@@ -100,9 +103,21 @@ class Mcl:
         self.resampling()
 
     def resampling(self):
-        ws = [e.weight for e in self.particles]
-        if sum(ws) < 1e-100: ws = [e + 1e-100 for e in ws]
-        ps = random.choices(self.particles, weights=ws, k=len(self.particles))
+        ws = np.cumsum([e.weight for e in self.particles])
+        if ws[-1] < 1e-100: ws = [e + 1e-100 for e in ws]
+
+        step = ws[-1]/len(self.particles)
+        r = np.random.uniform(0.0, step)
+        cur_pos = 0
+        ps = []
+
+        while(len(ps) < len(self.particles)):
+            if r < ws[cur_pos]:
+                ps.append(self.particles[cur_pos])
+                r += step
+            else:
+                cur_pos += 1
+
         self.particles = [copy.deepcopy(e) for e in ps]
         for p in self.particles: p.weight = 1.0/len(self.particles)
 
@@ -135,7 +150,6 @@ class Camera:
 
     def draw(self, ax, elems, cam_pose):
         for lm in self.lastdata:
-            print(f"cam_pose: {cam_pose}, type: {type(cam_pose)}")
             x, y, theta = cam_pose
             distance, direction = lm[0][0], lm[0][1]
             lx = x + distance * math.cos(direction + theta)
@@ -195,7 +209,7 @@ class Robot:
         c = patches.Circle(xy=(x, y), radius=self.r, fill=False, color=self.color) 
         elems.append(ax.add_patch(c))   # 上のpatches.Circleでロボットの胴体を示す円を作ってサブプロットへ登録
         self.poses.append(self.pose)
-        # elems += ax.plot([e[0] for e in self.poses], [e[1] for e in self.poses], linewidth=0.5, color="black")
+
         if self.sensor and len(self.poses) > 1:
             self.sensor.draw(ax, elems, self.poses[-2])
 
@@ -238,21 +252,38 @@ class Map:
         for lm in self.landmarks: lm.draw(ax, elems)
 
 def main():
-    time_interval = 0.1
-    init_pose = np.array([-2, 0, 0]).T
+    mcl_dir = os.path.dirname(os.path.abspath('mcl'))
+    config_file_path = os.path.join(mcl_dir, 'config', 'params.yaml')
 
+    with open(config_file_path, 'r') as file:
+        config =yaml.safe_load(file)
+
+    time_interval = config.get('time_interval', 0.0)
+    initial_pose = config.get('initial_pose', 0.0)
+    linear_vel = config.get('linear_vel', 0.0)
+    linear_distance_std = config.get('linear_distance_std', 0.0)
+    angular_distance_std = config.get('angular_distance_std', 0.0)
+    linear_rotation_std = config.get('linear_rotation_std', 0.0)
+    angular_rotation_std = config.get('angular_rotation_std', 0.0)        
+
+    init_pose = np.array(initial_pose).T
     world = World(100, time_interval)
+
     m = Map()
-    m.append_landmark(Landmark(4, 0.5))
+    m.append_landmark(Landmark(2, 2))
     world.append(m)
 
-    estimator = Mcl(m, init_pose, 100, motion_noise_stds={"nn":0.01, "no":0.02, "on":0.03, "oo":0.04})
+    estimator = Mcl(m, init_pose, 100,
+                    motion_noise_stds={
+                        "nn":linear_distance_std,
+                        "no":angular_distance_std,
+                        "on":linear_rotation_std,
+                        "oo":angular_rotation_std}
+                    )
 
-    straight = EstimatorAgent(time_interval, 0.2, 0.0, estimator)
+    straight = EstimatorAgent(time_interval, linear_vel, 0.0, estimator)
     robot = Robot(init_pose, sensor=Camera(m), agent=straight)
     estimator.motion_update(0.2, 0, time_interval)
-    # for p in estimator.particles:
-    #     print(p.pose)
 
     world.append(robot)
     world.draw()

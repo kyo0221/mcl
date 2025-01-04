@@ -1,0 +1,10 @@
+time_interval: 0.1
+initial_pose:
+  - -4  # x
+  - 0   # y
+  - 0   # theta
+linear_vel: 0.2
+linear_distance_std: 0.19
+angular_distance_std: 0.01
+linear_rotation_std: 0.13
+angular_rotation_std: 0.2
