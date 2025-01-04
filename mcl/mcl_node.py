@@ -1,7 +1,7 @@
 import os
 import copy
 import yaml
-import time
+
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
 import math
@@ -20,12 +20,12 @@ class World:
         self.objects.append(obj)
 
     def draw(self):
-        fig = plt.figure(figsize=(8,8))                # 8x8 inchの図を準備
-        ax = fig.add_subplot(111)                      # サブプロットを準備
-        ax.set_aspect('equal')                         # 縦横比を座標の値と一致させる
-        ax.set_xlim(-5,5)                              # X軸を-5m x 5mの範囲で描画
-        ax.set_ylim(-5,5)                              # Y軸も同様に
-        ax.set_xlabel("X",fontsize=20)                 # X軸にラベルを表示
+        fig = plt.figure(figsize=(8,8))
+        ax = fig.add_subplot(111)                   
+        ax.set_aspect('equal')                         
+        ax.set_xlim(-5,5)                              
+        ax.set_ylim(-5,5)                             
+        ax.set_xlabel("X",fontsize=20)                 
         ax.set_ylabel("Y",fontsize=20) 
 
         elems = []
@@ -206,7 +206,7 @@ class Robot:
         yn = y + self.r * math.sin(theta)
         elems += ax.plot([x, xn], [y, yn], color = self.color)
         c = patches.Circle(xy=(x, y), radius=self.r, fill=False, color=self.color) 
-        elems.append(ax.add_patch(c))   # 上のpatches.Circleでロボットの胴体を示す円を作ってサブプロットへ登録
+        elems.append(ax.add_patch(c))
         self.poses.append(self.pose)
 
         if self.sensor and len(self.poses) > 1:
@@ -251,8 +251,6 @@ class Map:
         for lm in self.landmarks: lm.draw(ax, elems)
 
 def main():
-    time.sleep(5
-               )
     mcl_dir = os.path.dirname(os.path.abspath('mcl'))
     config_file_path = os.path.join(mcl_dir, 'config', 'params.yaml')
 
