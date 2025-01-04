@@ -7,8 +7,6 @@ monte-calro-localizationのpython実装です.
 
 ![demo](https://github.com/kyo0221/mcl/blob/main/images/mcl_sample.gif)
 
-#
-
 ## Parameters
 | Parameter name       | Description                        | 
 | :------------------: | :--------------------------------: | 
