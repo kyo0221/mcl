@@ -1,8 +1,7 @@
 import os
-import random
 import copy
 import yaml
-
+import time
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
 import math
@@ -252,6 +251,8 @@ class Map:
         for lm in self.landmarks: lm.draw(ax, elems)
 
 def main():
+    time.sleep(5
+               )
     mcl_dir = os.path.dirname(os.path.abspath('mcl'))
     config_file_path = os.path.join(mcl_dir, 'config', 'params.yaml')
 
