@@ -58,6 +58,8 @@ class Particle:
         else:
             return pose + np.array([nu/omega*(math.sin(t0 + omega*time) - math.sin(t0)), nu/omega*(-math.cos(t0 + omega * time) + math.cos(t0)), omega * time])
 
+    def observation_update(self, observation):
+        print(observation)
 
 class Mcl:
     def __init__(self, init_pose, num, motion_noise_stds):
@@ -76,6 +78,42 @@ class Mcl:
         vxs = [math.cos(p.pose[2]) for p in self.particles]
         vys = [math.sin(p.pose[2]) for p in self.particles]
         elems.append(ax.quiver(xs, ys, vxs, vys, color="blue", alpha=0.5))
+
+    def observation_update(self, observation):
+        for p in self.particles: p.observation_update(observation)
+
+class Camera:
+    def __init__(self, env_map):
+        self.map = env_map
+        self.lastdata = []
+
+    def data(self, cam_pose):
+        observed = []
+        for lm in self.map.landmarks:
+            p = self.observation_function(cam_pose, lm.pos)
+            observed.append((p, lm.id))
+
+        self.lastdata = observed
+        return observed
+
+    def draw(self, ax, elems, cam_pose):
+        for lm in self.lastdata:
+            print(f"cam_pose: {cam_pose}, type: {type(cam_pose)}")
+            x, y, theta = cam_pose
+            distance, direction = lm[0][0], lm[0][1]
+            lx = x + distance * math.cos(direction + theta)
+            ly = y + distance * math.sin(direction + theta)
+            elems += ax.plot([x, lx], [y, ly], color="pink")
+
+    @classmethod
+    def observation_function(ls, cam_pose, obj_pos):
+        diff = obj_pos - cam_pose[0:2]
+        phi = math.atan2(diff[1], diff[0]) - cam_pose[2]
+
+        while phi >= np.pi: phi -= 2*np.pi
+        while phi < -np.pi: phi += 2*np.pi
+
+        return np.array([np.hypot(*diff), phi]).T
 
 class Agent:
     def __init__(self, nu, omega):
@@ -97,6 +135,7 @@ class EstimatorAgent(Agent):
     def decision(self, observation=None):
         self.estimator.motion_update(self.prev_nu, self.prev_omega, self.time_interval)
         self.prev_nu, self.prev_omega = self.nu, self.omega
+        self.estimator.observation_update(observation)
         return self.nu, self.omega
 
     def draw(self, ax, elems):
@@ -109,6 +148,7 @@ class Robot:
         self.color = color
         self.sensor = sensor
         self.agent = agent
+        self.poses = [pose]
 
     def draw(self, ax, elems):
         x, y, theta = self.pose
@@ -117,6 +157,10 @@ class Robot:
         elems += ax.plot([x, xn], [y, yn], color = self.color)
         c = patches.Circle(xy=(x, y), radius=self.r, fill=False, color=self.color) 
         elems.append(ax.add_patch(c))   # 上のpatches.Circleでロボットの胴体を示す円を作ってサブプロットへ登録
+        self.poses.append(self.pose)
+        # elems += ax.plot([e[0] for e in self.poses], [e[1] for e in self.poses], linewidth=0.5, color="black")
+        if self.sensor and len(self.poses) > 1:
+            self.sensor.draw(ax, elems, self.poses[-2])
 
         if self.agent:
             self.agent.draw(ax, elems)
@@ -131,7 +175,8 @@ class Robot:
 
     def one_step(self, time_interval):
         if not self.agent: return
-        nu, omega = self.agent.decision()
+        obs = self.sensor.data(self.pose) if self.sensor else None
+        nu, omega = self.agent.decision(obs)
         self.pose = self.state_transition(nu, omega, time_interval, self.pose)
 
 class Landmark:
@@ -161,13 +206,13 @@ def main():
 
     world = World(100, time_interval)
     m = Map()
-    m.append_landmark(Landmark(3, 2))
+    m.append_landmark(Landmark(4, 0.5))
     world.append(m)
 
     estimator = Mcl(init_pose, 100, motion_noise_stds={"nn":0.01, "no":0.02, "on":0.03, "oo":0.04})
 
     straight = EstimatorAgent(time_interval, 0.2, 0.0, estimator)
-    robot = Robot(init_pose, agent=straight)
+    robot = Robot(init_pose, sensor=Camera(m), agent=straight)
     estimator.motion_update(0.2, 0, time_interval)
     # for p in estimator.particles:
     #     print(p.pose)

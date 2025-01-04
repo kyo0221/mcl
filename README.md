@@ -1,5 +1,5 @@
 # mcl
-monte-calro-localizationのROS 2のpython実装
+monte-calro-localizationのpython実装
 
 ## description
 nodeを実行するとロボットが横に動くシミュレータが起動します.
