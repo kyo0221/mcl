@@ -41,8 +41,9 @@ class World:
             if hasattr(obj, "one_step"): obj.one_step(0.1)
 
 class Particle:
-    def __init__(self, init_pose):
+    def __init__(self, init_pose, weight):
         self.pose = init_pose
+        self.weight = weight
 
     def motion_update(self, nu, omega, time, noise_rate_pdf):
         ns = noise_rate_pdf.rvs() #順にnn, no, on, oo
@@ -58,12 +59,25 @@ class Particle:
         else:
             return pose + np.array([nu/omega*(math.sin(t0 + omega*time) - math.sin(t0)), nu/omega*(-math.cos(t0 + omega * time) + math.cos(t0)), omega * time])
 
-    def observation_update(self, observation):
-        print(observation)
+    def observation_update(self, observation, env_map, distance_dev_rate, direction_dev):
+        for d in observation:
+            obs_pos = d[0]
+            obs_id = d[1]
+
+            pos_on_map = env_map.landmarks[obs_id].pos
+            particle_suggest_pos = Camera.observation_function(self.pose, pos_on_map)
+
+            distance_dev = distance_dev_rate*particle_suggest_pos[0]
+            cov = np.diag(np.array([distance_dev**2, direction_dev**2]))
+            self.weight *= multivariate_normal(mean=particle_suggest_pos, cov=cov).pdf(obs_pos)
 
 class Mcl:
-    def __init__(self, init_pose, num, motion_noise_stds):
-        self.particles = [Particle(init_pose) for i in range(num)]
+    def __init__(self, env_map, init_pose, num, motion_noise_stds, \
+                 distance_dev=0.14, direction_dev=0.05):
+        self.particles = [Particle(init_pose, 1.0/num) for i in range(num)]
+        self.map = env_map
+        self.distance_dev = distance_dev
+        self.direction_dev = direction_dev
 
         v = motion_noise_stds
         c = np.diag([v["nn"]**2, v["no"]**2, v["on"]**2, v["oo"]**2])
@@ -75,12 +89,12 @@ class Mcl:
     def draw(self, ax, elems):
         xs = [p.pose[0] for p in self.particles]
         ys = [p.pose[1] for p in self.particles]
-        vxs = [math.cos(p.pose[2]) for p in self.particles]
-        vys = [math.sin(p.pose[2]) for p in self.particles]
+        vxs = [math.cos(p.pose[2])*p.weight*len(self.particles) for p in self.particles]
+        vys = [math.sin(p.pose[2])*p.weight*len(self.particles) for p in self.particles]
         elems.append(ax.quiver(xs, ys, vxs, vys, color="blue", alpha=0.5))
 
     def observation_update(self, observation):
-        for p in self.particles: p.observation_update(observation)
+        for p in self.particles: p.observation_update(observation, self.map, self.distance_dev, self.direction_dev)
 
 class Camera:
     def __init__(self, env_map, \
@@ -222,7 +236,7 @@ def main():
     m.append_landmark(Landmark(4, 0.5))
     world.append(m)
 
-    estimator = Mcl(init_pose, 100, motion_noise_stds={"nn":0.01, "no":0.02, "on":0.03, "oo":0.04})
+    estimator = Mcl(m, init_pose, 100, motion_noise_stds={"nn":0.01, "no":0.02, "on":0.03, "oo":0.04})
 
     straight = EstimatorAgent(time_interval, 0.2, 0.0, estimator)
     robot = Robot(init_pose, sensor=Camera(m), agent=straight)
