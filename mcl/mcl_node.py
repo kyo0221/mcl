@@ -83,15 +83,28 @@ class Mcl:
         for p in self.particles: p.observation_update(observation)
 
 class Camera:
-    def __init__(self, env_map):
+    def __init__(self, env_map, \
+                 distance_range=(0.5, 3.0),
+                 direction_range=(-math.pi/3, math.pi/3)):
         self.map = env_map
         self.lastdata = []
+
+        self.distance_range = distance_range
+        self.direction_range = direction_range
+
+    def visible(self, polarpos):
+        if polarpos is None:
+            return False
+        
+        return self.distance_range[0] <= polarpos[0] <= self.distance_range[1] \
+            and self.direction_range[0] <= polarpos[1] <= self.direction_range[1]
 
     def data(self, cam_pose):
         observed = []
         for lm in self.map.landmarks:
-            p = self.observation_function(cam_pose, lm.pos)
-            observed.append((p, lm.id))
+            z = self.observation_function(cam_pose, lm.pos)
+            if self.visible(z):
+                observed.append((z, lm.id))
 
         self.lastdata = observed
         return observed
