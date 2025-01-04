@@ -4,6 +4,8 @@ import math
 import matplotlib.patches as patches
 import numpy as np
 from scipy.stats import multivariate_normal
+import random
+import copy
 
 class World:
     def __init__(self, time_span, time_interval, debug = False):
@@ -95,6 +97,14 @@ class Mcl:
 
     def observation_update(self, observation):
         for p in self.particles: p.observation_update(observation, self.map, self.distance_dev, self.direction_dev)
+        self.resampling()
+
+    def resampling(self):
+        ws = [e.weight for e in self.particles]
+        if sum(ws) < 1e-100: ws = [e + 1e-100 for e in ws]
+        ps = random.choices(self.particles, weights=ws, k=len(self.particles))
+        self.particles = [copy.deepcopy(e) for e in ps]
+        for p in self.particles: p.weight = 1.0/len(self.particles)
 
 class Camera:
     def __init__(self, env_map, \
