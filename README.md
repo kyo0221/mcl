@@ -5,7 +5,8 @@ monte-calro-localizationのpython実装
 nodeを実行するとロボットが横に動くシミュレータが起動します.
 ロボットが移動するにつれてパーティクルが広がり, ランドマークを観測することでパーティクルが補正されます.
 
-
+![demo]
+(https://github.com/kyo0221/mcl/blob/main/images/mcl_sample.gif)
 
 ## Parameters
 |                      |                                    |     | 
